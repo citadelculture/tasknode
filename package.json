@@ -377,7 +377,7 @@
     "campaign-tracker-body-smoke": "node scripts/campaign-tracker-body-smoke.mjs"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.65",
+    "@napi-rs/canvas": "^1.0.8",
     "@node-rs/argon2": "2.1.0",
     "@scure/bip39": "^2.2.0",
     "@xmldom/xmldom": "0.9.12",
