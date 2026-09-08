@@ -396,7 +396,7 @@
     "pg": "^8.20.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "ripple-keypairs": "^2.0.0",
+    "ripple-keypairs": "^3.0.0",
     "sharp": "^0.35.3",
     "ws": "^8.21.3",
     "xrpl": "^4.6.0"
