@@ -293,6 +293,7 @@ export function createUnlockedWalletSessionStore({
     expectedAddress = "",
     idleLockMs = walletUnlockIdleLockMs(),
   } = {}) {
+    const started = generation;
     const key = sessionKey(accountId);
     if (!storage || !key) return null;
     for (const prefix of LEGACY_UNLOCKED_SESSION_PREFIXES) {
@@ -310,12 +311,13 @@ export function createUnlockedWalletSessionStore({
         return null;
       }
       const cryptoKey = await sessionCryptoKey();
-      if (!cryptoKey) return null;
+      if (!cryptoKey || started !== generation) return null;
       const plaintext = await subtle.decrypt(
         { name: "AES-GCM", iv: base64ToBytes(envelope.iv) },
         cryptoKey,
         base64ToBytes(envelope.ct)
       );
+      if (started !== generation) return null;
       const session = normalizeUnlockedWalletSession(JSON.parse(new TextDecoder().decode(plaintext)));
       if (!session) {
         storage.removeItem(key);
