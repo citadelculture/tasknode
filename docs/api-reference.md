@@ -67,6 +67,7 @@ resource membership, or other context beyond a generic identity class.
 | `terminal_tasknode_tasks` | `/api/terminal/tasknode/tasks` | `GET` | `bearer` | — | — |
 | `terminal_tasknode_requests` | `/api/terminal/tasknode/requests` | `GET` `POST` | `bearer` | strict JSON ≤ 65536 bytes | 30 / 60s |
 | `terminal_tasknode_context` | `/api/terminal/tasknode/context` | `GET` `POST` `PATCH` | `bearer` | strict JSON ≤ 262144 bytes | — |
+| `terminal_tasknode_team_context` | `/api/terminal/tasknode/team/context` | `GET` | `bearer` | — | — |
 | `terminal_tasknode_request` | `/^\/api\/terminal\/tasknode\/requests\/[^/]+$/` | `GET` | `bearer` | — | — |
 | `terminal_tasknode_balance` | `/api/terminal/tasknode/balance` | `GET` | `bearer` | — | — |
 | `terminal_tasknode_rewards` | `/api/terminal/tasknode/rewards` | `GET` | `bearer` | — | — |
@@ -200,4 +201,4 @@ resource membership, or other context beyond a generic identity class.
 | `usage_admin_credit` | `/api/usage/credit/admin` | `POST` | `admin_bearer` | strict JSON ≤ 4096 bytes | 20 / 600s |
 | `usage_ledger` | `/api/usage/ledger` | `GET` | `session` | — | — |
 
-Total: **174 route policies** and **8 authentication modes**.
+Total: **175 route policies** and **8 authentication modes**.

@@ -9,6 +9,7 @@ import {
   isDeathmarchTaskEvent,
   loadDeathmarchEvents,
   observeDeathmarchDatabasePool,
+  resolveDeathmarchMembers,
 } from "./deathmarch-event-source.mjs";
 import {
   DEFAULT_DEATHMARCH_SEED_FILE,
@@ -53,7 +54,12 @@ function clampInteger(value, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 }
 
-function safeErrorCode(error) { return [...safeText(error?.code || error?.name || "deathmarch_error", 240)].map((char) => isIdentifierChar(char) || ".:".includes(char) ? char : "_").join(""); }
+function safeErrorCode(error) {
+  // Keep the bounded message: a bare "Error" hides Discord/inference failure
+  // detail such as discord_bot_error:429 from the poll log.
+  const detail = safeText(error?.code || error?.message || error?.name || "deathmarch_error", 240);
+  return [...detail].map((char) => isIdentifierChar(char) || ".:".includes(char) ? char : "_").join("");
+}
 
 async function fetchWithTimeout(fetchImpl, url, options = {}, timeoutMs, timeoutCode) {
   const controller = new AbortController();
@@ -417,8 +423,9 @@ export function formatDeathmarchDiscordMessage({ summary = "", event = {} } = {}
   const fallbackSummary = taskId
     ? `${actionLabel.toLowerCase()} for task ${taskId}.`
     : `${actionLabel.toLowerCase()}.`;
+  const memberHandle = safeText(event.member_handle || event.member?.handle, 80);
   const lines = [
-    `**${actionLabel}**`,
+    memberHandle ? `**@${memberHandle}** · **${actionLabel}**` : `**${actionLabel}**`,
     title ? `**${title}**` : "",
     cleanedSummary || fallbackSummary,
     taskId ? `Task: \`${taskId}\`` : "",
@@ -622,9 +629,15 @@ export function sanitizeEventForAnonymity(event = {}, anonymity = 3, classificat
 }
 
 function formatEventForAnonymity(event = {}, sanitized = {}) {
-  if (clampInteger(sanitized.anonymity_level || sanitized.level, 3, 1, 3) !== 1) return sanitized;
+  // The public hive handle is attribution, not disclosure: it is shown at every
+  // anonymity level and never passed through the classifier or summarizer.
+  const memberHandle = safeText(event.member?.handle, 80);
+  if (clampInteger(sanitized.anonymity_level || sanitized.level, 3, 1, 3) !== 1) {
+    return memberHandle ? { ...sanitized, member_handle: memberHandle } : sanitized;
+  }
   return {
     ...sanitized,
+    member_handle: memberHandle,
     tx_hash: event.txHash,
     cid: event.cid,
     task_id: event.taskId,
@@ -760,7 +773,19 @@ export async function postToDiscord({
     const text = await response.text().catch(() => "");
     throw new Error(`discord_bot_error:${response.status}:${safeText(text, 300)}`);
   }
-  return { ok: true, transport: "bot", channelId };
+  // Keep the Discord message id so posts can be audited per event.
+  const messageId = await discordMessageId(response);
+  return { ok: true, transport: "bot", channelId, ...(messageId ? { messageId } : {}) };
+}
+
+async function discordMessageId(response) {
+  if (typeof response?.json !== "function") return "";
+  try {
+    const body = await response.json();
+    return safeText(body?.id, 64);
+  } catch {
+    return "";
+  }
 }
 
 async function readState(statePath) {
@@ -795,9 +820,17 @@ export async function processDeathmarchEvents({
   stdout = console.log,
 } = {}) {
   const state = noState ? { seen: {} } : await readState(statePath);
+  const batchKeys = new Set();
   let candidates = events
     .filter(isDeathmarchTaskEvent)
-    .filter((event) => noState || !state.seen[event.eventKey]);
+    .filter((event) => noState || !state.seen[event.eventKey])
+    // Duplicate delivery inside one batch (same event from two feeds or two
+    // member polls) is still one Death March post.
+    .filter((event) => {
+      if (!event.eventKey || batchKeys.has(event.eventKey)) return false;
+      batchKeys.add(event.eventKey);
+      return true;
+    });
   if (!markExisting) {
     candidates = candidates.slice(0, clampInteger(processLimit, 25, 1, 200));
   }
@@ -823,7 +856,7 @@ export async function processDeathmarchEvents({
       const summary = await callDeepSeekSummary({ event, anonymity, classification, env, fetchImpl });
       if (dryRun) {
         stdout(summary);
-        results.push({ ok: true, dryRun: true, eventKey: event.eventKey, summary });
+        results.push({ ok: true, dryRun: true, eventKey: event.eventKey, member: event.member?.handle || "", summary });
         continue;
       }
       const discord = await postToDiscord({ content: summary, env, fetchImpl });
@@ -832,11 +865,12 @@ export async function processDeathmarchEvents({
         cid: event.cid,
         taskId: event.taskId,
         actionKind: event.actionKind,
+        member: event.member?.handle || "",
         postedAt: new Date().toISOString(),
         discord,
       };
       if (!noState) await writeState(statePath, state);
-      results.push({ ok: true, eventKey: event.eventKey, discord });
+      results.push({ ok: true, eventKey: event.eventKey, member: event.member?.handle || "", discord });
     } catch (error) {
       const failure = {
         ok: false,
@@ -861,9 +895,18 @@ async function runOnce(args) {
     seedFile: args.seedFile,
     explicitSeedFile: args.seedFileExplicit,
   });
+  let members = null;
+  if (!args.file) {
+    const resolved = await resolveDeathmarchMembers({ wallet: args.wallet, env });
+    members = resolved.members;
+    for (const skipped of resolved.skipped) {
+      console.error(`deathmarch_member_skipped:${safeText(skipped.accountId, 120)}:${safeText(skipped.reason, 80)}`);
+    }
+  }
   const events = await loadDeathmarchEvents({
     file: args.file,
     wallet: args.wallet,
+    members,
     limit: args.limit,
     maxPages: args.maxPages,
     env,

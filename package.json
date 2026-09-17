@@ -91,6 +91,7 @@
     "system-status-network-spend-smoke": "node scripts/system-status-network-spend-smoke.mjs",
     "static-asset-fallback-smoke": "node scripts/static-asset-fallback-smoke.mjs",
     "app-state-cache-gate-smoke": "node scripts/app-state-cache-gate-smoke.mjs",
+    "app-state-switch-perf-smoke": "node scripts/app-state-switch-perf-smoke.mjs",
     "chat-markdown-smoke": "node scripts/chat-markdown-smoke.mjs",
     "chat-spirit-prompt-smoke": "node scripts/chat-spirit-prompt-smoke.mjs",
     "chat-persona-routing-smoke": "node scripts/chat-persona-routing-smoke.mjs",
@@ -119,6 +120,7 @@
     "user-observability-smoke": "node scripts/user-observability-smoke.mjs",
     "deathmarch": "node scripts/deathmarch.mjs",
     "deathmarch-smoke": "node scripts/deathmarch-smoke.mjs",
+    "deathmarch-team-fanout-smoke": "node scripts/deathmarch-team-fanout-smoke.mjs",
     "context-edit-smoke": "node scripts/context-edit-smoke.mjs",
     "context-rewrite-sample-smoke": "node scripts/context-rewrite-sample-smoke.mjs",
     "context-rewrite-live-smoke": "node scripts/context-rewrite-live-smoke.mjs",
@@ -311,7 +313,7 @@
     "signup-reset": "node scripts/reset-signup-test-account.mjs",
     "task-time-format-smoke": "node scripts/task-time-format-smoke.mjs",
     "security-smoke": "node scripts/security-smoke.mjs",
-    "test:unit": "npm run route-auth-policy-smoke && npm run request-validation-smoke && npm run campaign-tracker-body-smoke && npm run durable-identity-boundary-smoke && npm run app-state-cache-gate-smoke && npm run nostr-messages-smoke && npm run wallet-state-regression && npm run container-entrypoint-smoke && npm run runtime-role-boundary-smoke && npm run extension-registry-smoke && npm run inference-failover-smoke",
+    "test:unit": "npm run route-auth-policy-smoke && npm run request-validation-smoke && npm run campaign-tracker-body-smoke && npm run durable-identity-boundary-smoke && npm run app-state-cache-gate-smoke && npm run app-state-switch-perf-smoke && npm run nostr-messages-smoke && npm run wallet-state-regression && npm run container-entrypoint-smoke && npm run runtime-role-boundary-smoke && npm run extension-registry-smoke && npm run inference-failover-smoke",
     "test:integration": "npm run runtime-smoke && npm run chat-attachment-smoke && npm run pftl-cache-smoke && npm run pftl-cache-watcher-smoke && npm run security-smoke",
     "test:e2e": "npm run route-smoke",
     "test:e2e:full": "npm run frame-smoke",
@@ -398,7 +400,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "ripple-keypairs": "^2.0.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "ws": "^8.21.3",
     "xrpl": "^4.6.0"
   },
@@ -416,6 +418,6 @@
     "brace-expansion": "1.1.18",
     "esbuild": "0.28.2",
     "flatted": "3.4.4",
-    "js-yaml": "4.3.1"
+    "js-yaml": "4.3.2"
   }
 }

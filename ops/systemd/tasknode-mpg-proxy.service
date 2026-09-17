@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 Environment=HOME=/home/pfrpc
 Environment=PATH=/home/pfrpc/.fly/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/home/pfrpc/.fly/bin/fly mpg proxy 3x9jv02yd3dr6qp7 --bind-addr 127.0.0.1 --local-port 16433
+ExecStart=/home/pfrpc/.fly/bin/fly mpg proxy zp2wjrejjv5odn4q --bind-addr 127.0.0.1 --local-port 16433
 Restart=always
 RestartSec=10
 

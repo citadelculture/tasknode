@@ -1,6 +1,6 @@
 ---
 name: profile-nft-image-placeholder
-model: gpt-image-2
+model: gpt-image-2.5-sunburst
 temperature: 0.7
 max_tokens: 4000
 ---

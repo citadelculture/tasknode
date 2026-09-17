@@ -177,7 +177,7 @@ assert.equal(
 let openAiRequest = null;
 await renderProfileNftImage({
   prompt: rendered.prompt,
-  model: "gpt-image-2",
+  model: "gpt-image-2.5-sunburst",
   size: "1024x1024",
   quality: "high",
   outputFormat: "png",

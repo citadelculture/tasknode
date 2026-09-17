@@ -10,6 +10,8 @@ The private profile top section reads the latest completed run through `GET /api
 
 Profile copy distinguishes scored from paid state. When an issuance is not `submitted`, the headline says the airdrop was scored but not paid yet and shows the current payout status such as `Retry pending`, `Preparing payout`, or `Needs reconciliation`. The reward chart only counts submitted airdrops as earned PFT.
 
+The panel shows two labelled numbers. `Work quality (day) / 100` uses the latest run's `retention_value_score` (API `retentionValueScore`), the model's assessment of recent rewarded work; it does not divide the payout by the daily maximum and the tooltip says it is independent of the PFT payout. `Alignment (7d) / 100` is `alignment_score_7d × 100`, the same deterministic 7-day airdrop share the directory ranks by and public profiles show, so the profile and directory no longer show different numbers under one name. An unavailable score is shown as `— / 100`; a real zero is shown as `0 / 100`. Existing completed runs immediately use their stored model score, without rescoring or changing payments.
+
 Displayed airdrop values come from:
 
 - `daily_airdrop_pft`;
@@ -166,7 +168,7 @@ flag so operators can audit when any configured cap clamped the model.
 
 ### Alignment Score
 
-Alignment score is deterministic. It is not an LLM output.
+The retained `alignment_score_7d` field is deterministic and is not an LLM output. It is displayed as `Alignment (7d)` on the profile panel, public profiles, and the directory, always labelled with its window.
 
 ```text
 alignment_score_7d =

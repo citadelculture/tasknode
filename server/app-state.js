@@ -248,6 +248,19 @@ export function invalidateCachedAppState(session = null) {
   appStateCache.delete(key);
 }
 
+// Fire-and-forget: populate the cache for a session whose account is about to
+// load the app (for example right after an account switch) so the first
+// /api/app-state request after the reload is a cache hit.
+export function prewarmAppState(session = null) {
+  if (!session?.accountId) return null;
+  invalidateCachedAppState(session);
+  const promise = getCachedAppState(session, { refreshTaskProjection: false });
+  Promise.resolve(promise).catch((error) => {
+    console.warn("app_state_prewarm_failed", { error: safeError(error) });
+  });
+  return promise;
+}
+
 export function __resetAppStateCacheForTests() {
   appStateCacheEpoch += 1;
   appStateCacheGenerations.clear();
@@ -416,29 +429,34 @@ async function qaWorkerAccessForAccount(accountId = "") {
   };
 }
 
+function sectionTimer() {
+  const timings = {};
+  return {
+    timings,
+    async time(section, work) {
+      const startedAt = Date.now();
+      try {
+        return await work();
+      } finally {
+        timings[section] = Date.now() - startedAt;
+      }
+    },
+  };
+}
+
+function logAppStateTimings(accountId, timings, totalMs) {
+  console.info("app_state_timing", {
+    key: accountId ? "account" : "anon",
+    totalMs,
+    sections: timings,
+  });
+}
+
 export async function appState(session = null, { refreshTaskProjection = false } = {}) {
+  const startedAt = Date.now();
+  const timer = sectionTimer();
+  const timed = (section, work, fallback) => timer.time(section, () => appStateSection(section, work, fallback));
   const providers = authProviders();
-  const runtimeReadiness = await appStateSection("readiness", () => readiness(), () => ({
-    wallet: {
-      seedStorageReady: true,
-      challengeProofReady: true,
-      pftlRpcConfigured: false,
-    },
-    billing: {
-      chatEstimateReady: true,
-      chatExecutionReady: false,
-      adminCreditReady: false,
-      ledgerReady: false,
-      durableLedgerReady: false,
-    },
-    context: {
-      importReady: false,
-      editReady: true,
-      historyCacheReady: false,
-      encryptedCidHydrationReady: false,
-      manifestInkReady: false,
-    },
-  }));
   const accountId = session?.accountId || "";
   const signedOut = !accountId;
   const modes = chatModes({ signedOut });
@@ -449,98 +467,133 @@ export async function appState(session = null, { refreshTaskProjection = false }
         modes.find((mode) => mode.enabled)
       );
   const conversationId = conversationIdForSession(session);
-  const usage = accountId
-    ? await appStateSection(
-        "usage_summary",
-        () => usageSummary({ accountId, conversationId }),
-        signedOutUsageSummary
-      )
-    : signedOutUsageSummary;
-  const linkedWallet = await getLinkedWallet({ accountId });
   const ethDepositStatus = ethereumDepositConfigStatus();
-  const ethDepositAccount = await getEthereumDepositAccount({ accountId });
   const usdcGrantThresholdUsd = usdcTopUpGrantThresholdUsd();
+
+  // Phase 1: everything that only depends on the session. These used to run
+  // serially (p50 4.5s on production); they are independent and run together.
+  const [
+    runtimeReadiness,
+    usage,
+    linkedWallet,
+    ethDepositAccount,
+    baseIdentityProfile,
+    qaWorkerAccess,
+    chatRecents,
+    hiveConversation,
+    seedMessages,
+    contextDocument,
+  ] = await Promise.all([
+    timed("readiness", () => readiness(), () => ({
+      wallet: {
+        seedStorageReady: true,
+        challengeProofReady: true,
+        pftlRpcConfigured: false,
+      },
+      billing: {
+        chatEstimateReady: true,
+        chatExecutionReady: false,
+        adminCreditReady: false,
+        ledgerReady: false,
+        durableLedgerReady: false,
+      },
+      context: {
+        importReady: false,
+        editReady: true,
+        historyCacheReady: false,
+        encryptedCidHydrationReady: false,
+        manifestInkReady: false,
+      },
+    })),
+    accountId
+      ? timed("usage_summary", () => usageSummary({ accountId, conversationId }), signedOutUsageSummary)
+      : signedOutUsageSummary,
+    timer.time("linked_wallet", () => getLinkedWallet({ accountId })),
+    timer.time("eth_deposit_account", () => getEthereumDepositAccount({ accountId })),
+    accountId ? timer.time("identity_profile", () => getAccountIdentityProfile({ accountId })) : null,
+    accountId ? timer.time("qa_worker_access", () => qaWorkerAccessForAccount(accountId)) : null,
+    accountId ? timed("chat_conversations", () => listChatConversations({ accountId }), []) : [],
+    accountId ? timed("hive_conversation", () => getHiveConversation({ accountId }), null) : null,
+    accountId ? timed("chat_messages", () => getChatMessages({ accountId, conversationId }), []) : [],
+    timed(
+      "context_document",
+      () => getContextDocument({ accountId }),
+      () => fallbackContextDocument({ accountId })
+    ),
+  ]);
+
   const creditedUsdcUsd = Number(ethDepositAccount?.creditedBalances?.USDC?.amount || 0);
   const walletLinked = linkedWallet.status === "linked" && Boolean(linkedWallet.address);
-  const initiationGift = await appStateSection(
-    "wallet_initiation_grant",
-    () => resolveWalletInitiationGrantStatus({
-      accountId,
-      walletAddress: walletLinked ? linkedWallet.address : "",
-    }),
-    () => fallbackInitiationGift(walletLinked ? "status_unavailable" : "wallet_not_linked")
-  );
-  const usdcTopUpGrantStatus = walletLinked
-    ? await appStateSection(
-        "usdc_top_up_grant",
-        () => resolveWalletInitiationGrantStatus({
-          accountId,
-          walletAddress: linkedWallet.address,
-          source: "usdc_top_up",
-        }),
-        () => fallbackInitiationGift("status_unavailable")
-      )
-    : {
-        eligible: false,
-        reason: walletLinked ? null : "wallet_not_linked",
-        amountPft: initiationGift.amountPft,
-        amountDrops: initiationGift.amountDrops,
-        message: "Create and link a wallet before the USDC top-up grant can be sent.",
-      };
-  const usdcTopUpInitiationGift = usdcTopUpGrantStatus.eligible && creditedUsdcUsd <= usdcGrantThresholdUsd
-    ? {
-        ...usdcTopUpGrantStatus,
-        eligible: false,
-        reason: "usdc_top_up_required",
-        creditedUsdcUsd,
-        thresholdUsd: usdcGrantThresholdUsd,
-        message: `Credit more than $${usdcGrantThresholdUsd.toLocaleString("en-US")} USDC before sending the PFT initiation grant.`,
-      }
-    : { ...usdcTopUpGrantStatus, creditedUsdcUsd, thresholdUsd: usdcGrantThresholdUsd };
-  const tasks = await appStateSection(
-    "task_state",
-    () => listTaskState({
-      accountId,
-      walletAddress: walletLinked ? linkedWallet.address : "",
-    }),
-    () => ({
-      outstanding: [],
-      verification: [],
-      rewarded: [],
-      refused: [],
-      requests: {
-        items: [],
-        sync: {
-          source: "task_requests",
-          status: "database_error",
-          walletAddress: walletLinked ? linkedWallet.address : "",
-          requestCount: 0,
-          lastUpdatedAt: null,
+  const walletAddress = walletLinked ? linkedWallet.address : "";
+
+  // Phase 2: everything that depends on the linked wallet.
+  const [initiationGift, usdcTopUpGrantStatus, tasks, contextHistory] = await Promise.all([
+    timed(
+      "wallet_initiation_grant",
+      () => resolveWalletInitiationGrantStatus({ accountId, walletAddress }),
+      () => fallbackInitiationGift(walletLinked ? "status_unavailable" : "wallet_not_linked")
+    ),
+    walletLinked
+      ? timed(
+          "usdc_top_up_grant",
+          () => resolveWalletInitiationGrantStatus({
+            accountId,
+            walletAddress: linkedWallet.address,
+            source: "usdc_top_up",
+          }),
+          () => fallbackInitiationGift("status_unavailable")
+        )
+      : null,
+    timed(
+      "task_state",
+      () => listTaskState({
+        accountId,
+        walletAddress,
+      }),
+      () => ({
+        outstanding: [],
+        verification: [],
+        rewarded: [],
+        refused: [],
+        requests: {
+          items: [],
+          sync: {
+            source: "task_requests",
+            status: "database_error",
+            walletAddress,
+            requestCount: 0,
+            lastUpdatedAt: null,
+          },
         },
-      },
-      networkTasks: {
-        schema: "pf.task_node.network_task_eligibility.v1",
-        status: "unavailable",
-        label: "Network task routing unavailable",
-        summary: "Task Node could not inspect Network Task routing state.",
-        nextAction: "Try again after task state reloads.",
-        gates: [],
-      },
-      sync: {
-        source: "task_projections",
-        status: "database_error",
-        walletAddress: walletLinked ? linkedWallet.address : null,
-        projectionCount: 0,
-        lastSyncedAt: null,
-        requiresRefresh: true,
-        forceProjectionRefresh: false,
-        nextPollMs: 5000,
-        refreshReason: "task_state_unavailable",
-        activeRequestCount: 0,
-        refreshTaskIds: [],
-      },
-    })
-  );
+        networkTasks: {
+          schema: "pf.task_node.network_task_eligibility.v1",
+          status: "unavailable",
+          label: "Network task routing unavailable",
+          summary: "Task Node could not inspect Network Task routing state.",
+          nextAction: "Try again after task state reloads.",
+          gates: [],
+        },
+        sync: {
+          source: "task_projections",
+          status: "database_error",
+          walletAddress: walletLinked ? linkedWallet.address : null,
+          projectionCount: 0,
+          lastSyncedAt: null,
+          requiresRefresh: true,
+          forceProjectionRefresh: false,
+          nextPollMs: 5000,
+          refreshReason: "task_state_unavailable",
+          activeRequestCount: 0,
+          refreshTaskIds: [],
+        },
+      })
+    ),
+    timed(
+      "context_history",
+      () => getContextHistory({ accountId, walletAddress }),
+      () => fallbackContextHistory({ accountId, walletAddress })
+    ),
+  ]);
   if (refreshTaskProjection && walletLinked && tasks?.sync?.forceProjectionRefresh) {
     scheduleLinkedWalletTaskProjectionRefresh({
       accountId,
@@ -548,14 +601,32 @@ export async function appState(session = null, { refreshTaskProjection = false }
       syncKind: "task_list_refresh",
     });
   }
-  const baseIdentityProfile = accountId ? await getAccountIdentityProfile({ accountId }) : null;
+  const usdcTopUpInitiationGift = !walletLinked
+    ? {
+        eligible: false,
+        reason: "wallet_not_linked",
+        amountPft: initiationGift.amountPft,
+        amountDrops: initiationGift.amountDrops,
+        message: "Create and link a wallet before the USDC top-up grant can be sent.",
+      }
+    : usdcTopUpGrantStatus.eligible && creditedUsdcUsd <= usdcGrantThresholdUsd
+      ? {
+          ...usdcTopUpGrantStatus,
+          eligible: false,
+          reason: "usdc_top_up_required",
+          creditedUsdcUsd,
+          thresholdUsd: usdcGrantThresholdUsd,
+          message: `Credit more than $${usdcGrantThresholdUsd.toLocaleString("en-US")} USDC before sending the PFT initiation grant.`,
+        }
+      : { ...usdcTopUpGrantStatus, creditedUsdcUsd, thresholdUsd: usdcGrantThresholdUsd };
   const identityProfile = baseIdentityProfile
     ? {
         ...baseIdentityProfile,
-        expertAccess: await expertAccessFromTaskState({ accountId, taskState: tasks }),
-        qaWorkerAccess: await qaWorkerAccessForAccount(accountId),
+        expertAccess: await timer.time("expert_access", () => expertAccessFromTaskState({ accountId, taskState: tasks })),
+        qaWorkerAccess,
       }
     : null;
+  logAppStateTimings(accountId, timer.timings, Date.now() - startedAt);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -564,18 +635,12 @@ export async function appState(session = null, { refreshTaskProjection = false }
       conversationId,
       conversationsPath: "/api/chat/conversations",
       historyPath: "/api/chat/history",
-      recents: accountId
-        ? await appStateSection("chat_conversations", () => listChatConversations({ accountId }), [])
-        : [],
-      hiveConversation: accountId
-        ? await appStateSection("hive_conversation", () => getHiveConversation({ accountId }), null)
-        : null,
+      recents: chatRecents,
+      hiveConversation,
       defaultMode: signedOut ? "Help" : enabledMode?.label || "Instant",
       deepResearchAvailable: deepResearchAvailable({ accountId }),
       modes,
-      seedMessages: accountId
-        ? await appStateSection("chat_messages", () => getChatMessages({ accountId, conversationId }), [])
-        : [],
+      seedMessages,
     },
     tasks,
     wallet: {
@@ -642,22 +707,8 @@ export async function appState(session = null, { refreshTaskProjection = false }
     },
     context: {
       actions: contextActions(),
-      document: await appStateSection(
-        "context_document",
-        () => getContextDocument({ accountId: session?.accountId || "" }),
-        () => fallbackContextDocument({ accountId: session?.accountId || "" })
-      ),
-      history: await appStateSection(
-        "context_history",
-        () => getContextHistory({
-          accountId: session?.accountId || "",
-          walletAddress: walletLinked ? linkedWallet.address : "",
-        }),
-        () => fallbackContextHistory({
-          accountId: session?.accountId || "",
-          walletAddress: walletLinked ? linkedWallet.address : "",
-        })
-      ),
+      document: contextDocument,
+      history: contextHistory,
       savePath: "/api/context/edit/save",
       historyPath: "/api/context/history",
       importReady: runtimeReadiness.context.importReady,

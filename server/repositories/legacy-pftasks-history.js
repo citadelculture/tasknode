@@ -3,6 +3,7 @@ import { query } from "../db/pool.js";
 import { taskLifecycleActions, taskStatusInfo } from "../../shared/task-lifecycle.js";
 import { formatTaskDeadline, formatTaskTimestamp } from "../../shared/task-time-format.js";
 import { numeric, relativeAge, safeObject, safeText, titleCase, toIso } from "./task-projection-contract.js";
+import { normalizeTaskSteps } from "../../shared/task-steps.js";
 
 const legacySource = "legacy_pftasks_archive";
 
@@ -195,7 +196,7 @@ export function publicLegacyTask(row = {}) {
     ago: relativeAge(updatedAt),
     pft,
     description: row.description || "",
-    steps: Array.isArray(row.steps_json) ? row.steps_json.map((step) => safeText(step, 1000)).filter(Boolean) : [],
+    steps: normalizeTaskSteps(row.steps_json, { clean: safeText }),
     verification: {
       title: row.verification_type ? `Submit ${titleCase(row.verification_type)}` : "Historical verification",
       body: safeText(safeObject(row.verification_criteria_json).criteria || "", 2000),

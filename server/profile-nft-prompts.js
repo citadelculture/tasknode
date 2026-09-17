@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { PROFILE_NFT_IMAGE_MODEL } from "../shared/profile-nft-art.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -95,7 +96,7 @@ export function parsePromptDocument(rawText = "") {
 
 export function normalizeOpenAiImageModel(model = "") {
   const raw = String(model || "").trim();
-  if (!raw) return "gpt-image-2";
+  if (!raw) return PROFILE_NFT_IMAGE_MODEL;
   return raw.startsWith("openai/") ? raw.slice("openai/".length) : raw;
 }
 
@@ -106,7 +107,7 @@ export function profileNftPromptDigest(prompt = "") {
 export function loadProfileNftPrompt(env = process.env) {
   const promptFile = readPromptFile(env);
   const parsed = parsePromptDocument(promptFile.text);
-  const model = normalizeOpenAiImageModel(parsed.metadata.model || "gpt-image-2");
+  const model = normalizeOpenAiImageModel(parsed.metadata.model || PROFILE_NFT_IMAGE_MODEL);
   return {
     ...promptFile,
     metadata: {

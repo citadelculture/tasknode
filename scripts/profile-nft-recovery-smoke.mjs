@@ -125,7 +125,7 @@ const queuedDraft = await createGeneratingProfileNft({
 const queuedJob = await enqueueProfileNftRenderJob({
   profileNftId: queuedDraft.id,
   sanitizedPrompt: "A privacy-safe queued prompt.",
-  model: "gpt-image-2",
+  model: "gpt-image-2.5-sunburst",
   size: "1024x1024",
   quality: "high",
   outputFormat: "png",
@@ -173,7 +173,7 @@ const reclaimDraft = await createGeneratingProfileNft({
 await enqueueProfileNftRenderJob({
   profileNftId: reclaimDraft.id,
   sanitizedPrompt: "A privacy-safe reclaim prompt.",
-  model: "gpt-image-2",
+  model: "gpt-image-2.5-sunburst",
   size: "1024x1024",
   quality: "high",
   outputFormat: "png",
