@@ -12,6 +12,7 @@ import {
 } from "./repositories/device-account-sets.js";
 import { getLinkedWallet } from "./repositories/account-wallets.js";
 import { recordUserObservabilityEvent } from "./repositories/user-observability.js";
+import { prewarmAppState } from "./app-state.js";
 
 function result(status, body = {}, extra = {}) {
   return { status, body: { ok: status < 400, ...body }, ...extra };
@@ -99,6 +100,9 @@ export async function accountSwitch({ accountSetToken = "", payload = {}, sessio
   });
   await destroySession(sessionId);
   await record("user.account.selected", targetAccountId, "selected", "profile_switch", { previousAccountId: session.accountId });
+  // Pre-warm the target account's app-state so the post-switch reload hits a
+  // fresh cache entry instead of paying the full compute on the critical path.
+  prewarmAppState(created.session);
   return result(200, {
     selectedAccountId: targetAccountId,
     accountGeneration: randomUUID(),

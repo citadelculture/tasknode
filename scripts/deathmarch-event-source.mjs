@@ -192,9 +192,15 @@ async function fetchAndDecryptDeathmarchPayload({ cid, env = process.env } = {})
   }
 }
 
-async function loadEventsFromWallet({ wallet, limit, maxPages, env = process.env } = {}) {
-  const history = await fetchHistoricalAccountTransactions({ walletAddress: wallet, limit, maxPages, env });
-  const pointers = extractPftPointerEvents(history.transactions, wallet)
+async function loadEventsFromWallet({
+  wallet,
+  limit,
+  maxPages,
+  env = process.env,
+  chainHistoryImpl = fetchHistoricalAccountTransactions,
+} = {}) {
+  const history = await chainHistoryImpl({ walletAddress: wallet, limit, maxPages, env });
+  const pointers = extractPftPointerEvents(safeArray(history?.transactions), wallet)
     .filter((pointer) => TASK_KIND_LABELS.has(safeText(pointer.kindLabel, 80).toUpperCase()));
   const events = [];
   for (const pointer of pointers) {
@@ -226,11 +232,20 @@ async function loadEventsFromWallet({ wallet, limit, maxPages, env = process.env
 }
 
 export function databaseRowsToDeathmarchEvents(rows = []) {
-  return safeArray(rows).map(normalizeEvent).filter(isDeathmarchTaskEvent);
+  return safeArray(rows).map((row) => {
+    // Direct-write submission / update / reward rows carry no title; the task
+    // projection does. Without it the summary can only echo the task id.
+    const title = safeText(row?.task_title, 240);
+    const payload = safeObject(row?.payload_json);
+    return title && !payload.title
+      ? normalizeEvent({ ...row, payload_json: { ...payload, title } })
+      : normalizeEvent(row);
+  }).filter(isDeathmarchTaskEvent);
 }
 
 async function loadEventsFromDatabase({
   wallet,
+  accountId = "",
   limit,
   env = process.env,
   queryImpl = deathmarchDatabaseQuery,
@@ -238,32 +253,37 @@ async function loadEventsFromDatabase({
   if (!databaseEventsEnabled(env)) return [];
   const boundedLimit = clampInteger(limit, 100, 20, 400);
   const walletAddress = safeText(wallet, 120);
+  const normalizedAccountId = safeText(accountId, 120);
   const eventTypes = Array.from(TASK_SCHEMAS);
   const result = await queryImpl(
     `SELECT *
        FROM (
-         SELECT event_type,
-                task_id,
-                source_tx_hash,
-                source_cid,
-                occurred_at,
-                wallet_address,
-                payload_json,
-                pointer_json
-           FROM task_events
-          WHERE event_type = ANY($1::text[])
+         SELECT e.event_type,
+                e.task_id,
+                e.account_id,
+                e.source_tx_hash,
+                e.source_cid,
+                e.occurred_at,
+                e.wallet_address,
+                e.payload_json,
+                e.pointer_json,
+                p.title AS task_title
+           FROM task_events e
+           LEFT JOIN task_projections p ON p.task_id = e.task_id
+          WHERE e.event_type = ANY($1::text[])
             AND (
-              $2::text = ''
-              OR wallet_address = $2
-              OR payload_json->>'wallet_address' = $2
-              OR payload_json->>'subject_wallet' = $2
-              OR payload_json->>'authority_wallet' = $2
+              ($2::text = '' AND $4::text = '')
+              OR e.wallet_address = $2
+              OR e.payload_json->>'wallet_address' = $2
+              OR e.payload_json->>'subject_wallet' = $2
+              OR e.payload_json->>'authority_wallet' = $2
+              OR ($4::text <> '' AND e.account_id = $4)
             )
-          ORDER BY occurred_at DESC, created_at DESC
+          ORDER BY e.occurred_at DESC, e.created_at DESC
           LIMIT $3
        ) recent
       ORDER BY occurred_at ASC`,
-    [eventTypes, walletAddress, boundedLimit],
+    [eventTypes, walletAddress, boundedLimit, normalizedAccountId],
     env
   );
   return databaseRowsToDeathmarchEvents(result.rows);
@@ -283,22 +303,160 @@ function mergeDeathmarchEvents(...groups) {
   });
 }
 
+function normalizeMember(input = {}) {
+  const member = safeObject(input);
+  const rawHandle = safeText(member.handle || member.hiveHandle, 80);
+  const handle = rawHandle.startsWith("@") ? rawHandle.slice(1) : rawHandle;
+  return {
+    accountId: safeText(member.accountId || member.account_id, 120),
+    handle,
+    walletAddress: safeText(member.walletAddress || member.wallet || member.wallet_address, 120),
+  };
+}
+
+// DEATHMARCH_MEMBERS: explicit fan-out list, "handle=rWallet,handle2=rWallet2"
+// or a JSON array of { handle, walletAddress, accountId }. Used for tests and
+// for running without the collaboration database.
+export function parseConfiguredMembers(value = "") {
+  const text = safeText(value, 20000);
+  if (!text) return [];
+  let entries = [];
+  if (text.startsWith("[")) {
+    try { entries = JSON.parse(text); } catch { throw new Error("deathmarch_members_invalid_json"); }
+  } else {
+    entries = text.split(",").map((part) => {
+      const [handle, wallet] = part.split("=").map((piece) => safeText(piece, 120));
+      return wallet ? { handle, walletAddress: wallet } : { walletAddress: handle };
+    });
+  }
+  return safeArray(entries).map(normalizeMember).filter((member) => member.walletAddress);
+}
+
+async function managerAccountIdForWallet({ wallet, queryImpl, env }) {
+  const walletAddress = safeText(wallet, 120);
+  if (!walletAddress) return "";
+  const result = await queryImpl(
+    `SELECT account_id FROM account_linked_wallets WHERE wallet_address = $1 AND status = 'linked' LIMIT 1`,
+    [walletAddress],
+    env
+  );
+  return safeText(result.rows?.[0]?.account_id, 120);
+}
+
+// Team members are the accounts related to the manager through active
+// task-history grants (the same relationships the web Team page shows). A
+// member whose task history is NOT shared with the manager (no incoming grant)
+// is skipped with a non-leaking log entry, never polled.
+async function resolveTeamMembersFromDatabase({ wallet, env, queryImpl }) {
+  const managerAccountId = safeText(env.DEATHMARCH_TEAM_ACCOUNT_ID, 120)
+    || await managerAccountIdForWallet({ wallet, queryImpl, env });
+  if (!managerAccountId) return { members: [], skipped: [], managerAccountId: "" };
+  const grants = await queryImpl(
+    `SELECT subject_account_id, viewer_account_id
+       FROM task_history_grants
+      WHERE (subject_account_id = $1 OR viewer_account_id = $1)
+        AND scope = 'task_history_v1' AND status = 'active'`,
+    [managerAccountId],
+    env
+  );
+  const others = new Map();
+  for (const row of safeArray(grants.rows)) {
+    const subject = safeText(row.subject_account_id, 120);
+    const viewer = safeText(row.viewer_account_id, 120);
+    const other = subject === managerAccountId ? viewer : subject;
+    if (!other || other === managerAccountId) continue;
+    const entry = others.get(other) || { accountId: other, incoming: false };
+    if (subject === other && viewer === managerAccountId) entry.incoming = true;
+    others.set(other, entry);
+  }
+  const members = [];
+  const skipped = [];
+  for (const entry of others.values()) {
+    if (!entry.incoming) {
+      skipped.push({ accountId: entry.accountId, reason: "task_history_not_shared" });
+      continue;
+    }
+    const [account, linked] = await Promise.all([
+      queryImpl(`SELECT hive_handle FROM app_accounts WHERE account_id = $1 LIMIT 1`, [entry.accountId], env),
+      queryImpl(
+        `SELECT wallet_address FROM account_linked_wallets WHERE account_id = $1 AND status = 'linked' ORDER BY linked_at DESC LIMIT 1`,
+        [entry.accountId],
+        env
+      ),
+    ]);
+    const walletAddress = safeText(linked.rows?.[0]?.wallet_address, 120);
+    if (!walletAddress) {
+      skipped.push({ accountId: entry.accountId, reason: "wallet_not_linked" });
+      continue;
+    }
+    members.push(normalizeMember({
+      accountId: entry.accountId,
+      handle: account.rows?.[0]?.hive_handle || "",
+      walletAddress,
+    }));
+  }
+  return { members, skipped, managerAccountId };
+}
+
+export async function resolveDeathmarchMembers({
+  wallet = "",
+  env = process.env,
+  queryImpl = deathmarchDatabaseQuery,
+} = {}) {
+  const primary = normalizeMember({
+    handle: env.DEATHMARCH_WALLET_HANDLE || "",
+    walletAddress: wallet,
+  });
+  const configured = parseConfiguredMembers(env.DEATHMARCH_MEMBERS);
+  let team = { members: [], skipped: [], managerAccountId: "" };
+  if (!configured.length && env.DEATHMARCH_TEAM_FANOUT !== "false" && databaseEventsEnabled(env)) {
+    team = await resolveTeamMembersFromDatabase({ wallet, env, queryImpl });
+    if (team.managerAccountId && !primary.accountId) primary.accountId = team.managerAccountId;
+  }
+  const byWallet = new Map();
+  for (const member of [primary, ...configured, ...team.members]) {
+    if (!member.walletAddress || byWallet.has(member.walletAddress)) continue;
+    byWallet.set(member.walletAddress, member);
+  }
+  return { members: Array.from(byWallet.values()), skipped: team.skipped };
+}
+
+function tagMember(events, member) {
+  const tag = member?.walletAddress
+    ? { accountId: member.accountId, handle: member.handle, walletAddress: member.walletAddress }
+    : null;
+  if (!tag) return events;
+  for (const event of events) {
+    if (!event.member) event.member = tag;
+  }
+  return events;
+}
+
 export async function loadDeathmarchEvents({
   file = "",
   wallet = "",
+  members = null,
   limit = 100,
   maxPages = 1,
   env = process.env,
+  queryImpl = deathmarchDatabaseQuery,
+  chainHistoryImpl = fetchHistoricalAccountTransactions,
 } = {}) {
   if (file) return loadEventsFromFile(file);
   const boundedLimit = clampInteger(limit, 100, 20, 400);
-  return mergeDeathmarchEvents(
-    await loadEventsFromWallet({
-      wallet,
-      limit: boundedLimit,
-      maxPages: clampInteger(maxPages, 1, 1, 30),
-      env,
-    }),
-    await loadEventsFromDatabase({ wallet, limit: boundedLimit, env })
-  );
+  const boundedPages = clampInteger(maxPages, 1, 1, 30);
+  const fanout = safeArray(members).length ? safeArray(members).map(normalizeMember) : [normalizeMember({ walletAddress: wallet })];
+  const groups = [];
+  for (const member of fanout) {
+    if (!member.walletAddress) continue;
+    const [chain, database] = await Promise.all([
+      loadEventsFromWallet({ wallet: member.walletAddress, limit: boundedLimit, maxPages: boundedPages, env, chainHistoryImpl }),
+      loadEventsFromDatabase({ wallet: member.walletAddress, accountId: member.accountId, limit: boundedLimit, env, queryImpl }),
+    ]);
+    groups.push(tagMember(chain, member), tagMember(database, member));
+  }
+  // One on-chain/off-chain event is one Death March post no matter how many
+  // member feeds surfaced it: the tx-based eventKey dedupes across feeds and
+  // members, and the persisted state dedupes across restarts.
+  return mergeDeathmarchEvents(...groups);
 }

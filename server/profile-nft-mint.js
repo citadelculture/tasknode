@@ -1,5 +1,5 @@
 import { pinContextIpfsJson } from "./context-ipfs.js";
-import { PROFILE_NFT_TITLE } from "../shared/profile-nft-art.js";
+import { PROFILE_NFT_IMAGE_MODEL, PROFILE_NFT_TITLE } from "../shared/profile-nft-art.js";
 import {
   pftUriToHex,
   preparePftNftMintTransaction,
@@ -41,7 +41,7 @@ export function metadataForNft(nft = {}) {
         { trait_type: "Colors", value: nft.metadataJson.art.colors.join(" / ") },
       ] : []),
       { trait_type: "Source", value: "Task Node Official" },
-      { trait_type: "Model", value: nft.model || "gpt-image-2" },
+      { trait_type: "Model", value: nft.model || PROFILE_NFT_IMAGE_MODEL },
       { trait_type: "Prompt digest", value: nft.promptDigest || "unavailable" },
       { trait_type: "Template digest", value: nft.templateDigest || "unavailable" },
     ],
