@@ -314,7 +314,7 @@
     "task-time-format-smoke": "node scripts/task-time-format-smoke.mjs",
     "security-smoke": "node scripts/security-smoke.mjs",
     "test:unit": "npm run route-auth-policy-smoke && npm run request-validation-smoke && npm run campaign-tracker-body-smoke && npm run durable-identity-boundary-smoke && npm run app-state-cache-gate-smoke && npm run app-state-switch-perf-smoke && npm run nostr-messages-smoke && npm run wallet-state-regression && npm run container-entrypoint-smoke && npm run runtime-role-boundary-smoke && npm run extension-registry-smoke && npm run inference-failover-smoke",
-    "test:integration": "npm run runtime-smoke && npm run chat-attachment-smoke && npm run pftl-cache-smoke && npm run pftl-cache-watcher-smoke && npm run security-smoke",
+    "test:integration": "npm run double-slash-request-smoke && npm run runtime-smoke && npm run chat-attachment-smoke && npm run pftl-cache-smoke && npm run pftl-cache-watcher-smoke && npm run security-smoke",
     "test:e2e": "npm run route-smoke",
     "test:e2e:full": "npm run frame-smoke",
     "security": "npm audit --audit-level=high && npm run public-help-check && npm run route-auth-policy-smoke && npm run trusted-proxy-rate-limit-smoke && npm run account-data-lifecycle-smoke && npm run data-retention-smoke && npm run data-recovery-safety-smoke && npm run asset-provenance-check && npm run dependency-license-check",
