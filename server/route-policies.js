@@ -212,6 +212,13 @@ export const apiRoutePolicies = [
     body: requestBodies.terminalContextBody,
   },
   {
+    id: "terminal_tasknode_team_context",
+    path: "/api/terminal/tasknode/team/context",
+    methods: ["GET"],
+    auth: "bearer",
+    unauthenticatedError: "terminal_login_required",
+  },
+  {
     id: "terminal_tasknode_request",
     pattern: /^\/api\/terminal\/tasknode\/requests\/[^/]+$/,
     methods: ["GET"],

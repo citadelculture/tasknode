@@ -9,6 +9,7 @@ import {
   taskStatusTab,
 } from "../../shared/task-lifecycle.js";
 import { formatTaskDeadline, formatTaskTimestamp } from "../../shared/task-time-format.js";
+import { normalizeTaskSteps } from "../../shared/task-steps.js";
 
 export function safeText(value = "", max = 4000) {
   return String(value || "").trim().slice(0, max);
@@ -163,9 +164,7 @@ export function emptyTaskReadIntegrity({ error = "" } = {}) {
 }
 
 export function taskSteps(row, generatedTask = {}) {
-  const generatedSteps = Array.isArray(generatedTask.steps)
-    ? generatedTask.steps.map((step) => safeText(step, 1000)).filter(Boolean).slice(0, 5)
-    : [];
+  const generatedSteps = normalizeTaskSteps(generatedTask.steps, { clean: safeText });
   if (generatedSteps.length) return generatedSteps;
   const requirement = safeText(row.submission_requirement_text || "", 2000);
   if (!requirement) return [];

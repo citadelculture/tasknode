@@ -10,6 +10,45 @@ Default watched wallet:
 rPo8GkCA9YMKzuJGTHbj11kdVfPqSJHxNx
 ```
 
+## Team fan-out
+
+The watched wallet's account is treated as the manager. On every poll the
+harness resolves the team from the collaboration database: each account with
+an active `task_history_grants` row where the manager is the viewer (that is,
+a direct report or collaborator whose task history is shared with the manager)
+is polled too, through both the PFTL wallet history and direct-write
+`task_events` rows (matched by wallet or `account_id`). Every post is
+attributed with the member's public hive handle as a header line
+(`**@handle** · **Evidence submitted**`).
+
+- Accounts related to the manager but without an incoming task-history grant
+  are skipped and logged as `deathmarch_member_skipped:<account_id>:task_history_not_shared`;
+  they are never polled and their handles are never logged.
+- Accounts without a linked wallet are skipped as `wallet_not_linked`.
+- One on-chain/off-chain event is one post: the tx-based `eventKey` dedupes
+  across feeds and members inside a batch, and the state file dedupes across
+  restarts.
+- The handle is attribution only. It is added outside the sanitized packet, so
+  the classifier and summarizer never see it and redaction is unchanged.
+
+Configuration:
+
+```bash
+export DEATHMARCH_WALLET_HANDLE=goodalexander   # header handle for the watched wallet
+export DEATHMARCH_TEAM_ACCOUNT_ID=acct_...      # optional; default resolves from the wallet
+export DEATHMARCH_TEAM_FANOUT=false             # single-wallet mode
+export DEATHMARCH_MEMBERS="alphadev=rWallet1,betadev=rWallet2"   # explicit list, bypasses the database lookup
+```
+
+Before enabling fan-out on an existing deployment run `--mark-existing` once so
+the members' historical events are recorded as seen instead of being posted as
+a backlog.
+
+The local proxy unit `ops/systemd/tasknode-mpg-proxy.service` must point at the
+cluster production is attached to (`zp2wjrejjv5odn4q` since the 2026-08-31
+recovery); a proxy left on the previous cluster silently empties the
+`task_events` feed while the wallet feed keeps working.
+
 ## Configuration
 
 Required:

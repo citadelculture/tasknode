@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { appearancePageHead } from "./appearance-page.js";
 import { handleCampaignTrackerRoute } from "./campaign-tracker-routes.js";
+import { handleCollaborationRoute } from "./collaboration-routes.js";
 import { authStart, chatModes, chatSend, chatStreamStart } from "./product-contracts.js";
 import { executeChatStream, logChatProviderError } from "./chat-router.js";
 import { startChatStreamHeartbeat } from "./chat-stream-heartbeat.js";
@@ -14,6 +15,7 @@ import {
   listTaskProjectionTasks,
 } from "./repositories/tasks.js";
 import { contextBodyText, contextLineCount } from "../shared/context-line-map.js";
+import { normalizeTaskSteps } from "../shared/task-steps.js";
 import { getOwnedTaskRequest, listTaskRequests } from "./repositories/task-requests.js";
 import {
   conversationIdForSession,
@@ -249,9 +251,7 @@ function terminalTaskBrief(detail = {}) {
   const due = cleanText(task.fullDue || task.due || "", 120);
   const dueLabel = cleanText(task.dueLabel || "Deadline", 80);
   const description = cleanText(task.description || "", 8000);
-  const steps = Array.isArray(task.steps)
-    ? task.steps.map((step) => cleanText(step, 1000)).filter(Boolean).slice(0, 8)
-    : [];
+  const steps = normalizeTaskSteps(task.steps, { clean: cleanText });
   const verification = terminalTaskVerification(task);
   const currentVerificationRequest = terminalCurrentVerificationRequest(detail);
   const sections = [
@@ -477,6 +477,12 @@ async function handleTerminalTaskNodeRoute({ json, readJson, req, res, url, orig
   }
   const session = resolved.session;
   if (await handleCampaignTrackerRoute({ json, readJson, req, res, url, session })) return true;
+
+  if (url.pathname === "/api/terminal/tasknode/team/context") {
+    const teamUrl = new URL(url);
+    teamUrl.pathname = "/api/team/context";
+    return handleCollaborationRoute({ json, readJson, req, res, url: teamUrl, session });
+  }
 
   if (url.pathname === "/api/terminal/tasknode/status") {
     const wallet = await linkedWalletForSession(session);

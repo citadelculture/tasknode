@@ -34,6 +34,7 @@ const WalletView = lazy(() => import("../features/wallet/WalletView").then((modu
 const HelpView = lazy(() => import("../features/docs/DocsView").then((module) => ({ default: module.DocsView })));
 const DocsLibraryView = lazy(() => import("../features/docs-library/DocsLibraryView").then((module) => ({ default: module.DocsLibraryView })));
 const HiveView = lazy(() => import("../features/hive/HiveView").then((module) => ({ default: module.HiveView })));
+const TASKS_VIEW_FRESH_STATE_MS = 2000;
 const ProfilePage = lazy(() => import("../features/profile/ProfileView").then((module) => ({ default: module.ProfileView })));
 const MemberProfilePage = lazy(() => import("../features/profile/ProfileView").then((module) => ({ default: module.MemberProfileView })));
 const DirectoryView = lazy(() => import("../features/directory/DirectoryView").then((module) => ({ default: module.DirectoryView })));
@@ -86,6 +87,7 @@ export function App() {
   const refreshAppStateRef = useRef(null);
   const taskRefreshSequenceRef = useRef({ applied: 0, started: 0 });
   const accountBoundaryRef = useRef(initialAccountBoundary());
+  const appStateFetchedAtRef = useRef(0);
   useEffect(() => {
     let active = true;
     const accountCapture = { ...accountBoundaryRef.current };
@@ -104,6 +106,10 @@ export function App() {
   }, []);
   useEffect(() => {
     if (view !== "tasks") return undefined;
+    // Landing on the tasks view right after bootstrap (cold load or account
+    // switch) already has fresh task state; forcing a projection refresh here
+    // paid a second full app-state compute on the critical path.
+    if (Date.now() - appStateFetchedAtRef.current < TASKS_VIEW_FRESH_STATE_MS) return undefined;
     refreshAppStateRef.current?.({ errorMessage: "Failed to load task state", taskProjectionRefresh: true })
       .then(() => null)
       .catch(() => null);
@@ -694,6 +700,7 @@ export function App() {
     if (isSignedInSession(state?.session)) {
       writeAuthSessionHint(storage, state.session);
     }
+    appStateFetchedAtRef.current = Date.now();
     setAppState((current) =>
       mergeAppStateWithMonotonicTasks(current, state, {
         mergeBase: mergeAppStateWithClientWalletBalance,

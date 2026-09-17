@@ -300,12 +300,12 @@ function CredentialStrip({ metrics = {}, loading = false }) {
   const hasAlignment = alignment !== null && alignment !== undefined && Number.isFinite(Number(alignment));
   const items = [
     {
-      label: "Alignment score",
+      label: "Alignment (7d)",
       max: "100",
       score: loading ? "—" : hasAlignment ? String(Math.round(Number(alignment))) : "—",
-      status: hasAlignment ? "Airdrop alignment" : "Not scored yet",
+      status: hasAlignment ? "7-day airdrop share" : "Not scored yet",
       sub: hasAlignment
-        ? `${fmtPft(metrics.actualAirdropPft7d)} of ${fmtPft(metrics.maxPossibleAirdropPft7d)} possible PFT over the scored window`
+        ? `${fmtPft(metrics.actualAirdropPft7d)} of ${fmtPft(metrics.maxPossibleAirdropPft7d)} possible airdrop PFT over the last 7 days`
         : "Run a daily airdrop score to populate alignment.",
       tone: hasAlignment ? C.success : C.ink4,
     },

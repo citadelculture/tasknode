@@ -4,6 +4,7 @@ import { Wallet } from "xrpl";
 import { loadPrompt, promptDigest } from "./prompt-registry.js";
 import { buildTaskgenReplayKey } from "./repositories/taskgen-replay-cache.js";
 import { reviewTaskGenerationReadiness } from "./task-generation-readiness.js";
+import { TASK_MIN_STEPS, normalizeTaskSteps } from "../shared/task-steps.js";
 import {
   INFERENCE_MODELS,
   inferenceChatCompletion,
@@ -38,7 +39,7 @@ const taskgenResponseFormat = {
         title: { type: "string", minLength: 5, maxLength: 240 },
         description: { type: "string", minLength: 20, maxLength: 8000 },
         task_kind: { type: "string", enum: ["personal", "network", "alpha"] },
-        steps: { type: "array", minItems: 2, maxItems: 5, items: { type: "string", minLength: 5, maxLength: 1000 } },
+        steps: { type: "array", minItems: TASK_MIN_STEPS, items: { type: "string" } },
         submission_requirement: {
           type: "object",
           additionalProperties: false,
@@ -321,7 +322,8 @@ export function projectTaskgenInput(bundle = {}, { bundleCid = "", bundleDigest 
 }
 
 function parseJsonObject(text = "") {
-  return JSON.parse(String(text || "").trim());
+  try { return JSON.parse(String(text || "").trim()); }
+  catch { throw new Error("taskgen_output_json_invalid"); }
 }
 
 function normalizeReward(value, policy = {}) {
@@ -373,11 +375,9 @@ export function validateTaskgenOutput(output = {}, policy = {}) {
   if (!evidenceTypes.includes(requirement.type) || !outputText(requirement.criteria, 20, 4000)) throw new Error("taskgen_submission_requirement_invalid");
   const verification = safeObject(output.verification_policy);
   if (!evidenceTypes.includes(verification.verification_type) || !outputText(verification.mode, 1, 120) || typeof verification.followup_required !== "boolean") throw new Error("taskgen_verification_policy_invalid");
-  if (!Array.isArray(output.steps) || output.steps.length > 5 || output.steps.some((step) => !outputText(step, 5, 1000))) throw new Error("taskgen_steps_invalid");
-  const steps = Array.isArray(output.steps)
-    ? output.steps.map((step) => safeText(step, 1000)).filter(Boolean).slice(0, 5)
-    : [];
-  if (steps.length < 2) throw new Error("taskgen_steps_invalid");
+  // Clamp, never reject: a thorough model output must not burn a generation.
+  const steps = normalizeTaskSteps(output.steps, { clean: safeText });
+  if (steps.length < TASK_MIN_STEPS) throw new Error("taskgen_steps_invalid");
   const reward = safeObject(output.reward_offer);
   const policyAcceptBy = policyDeadlineValue(policy, "accept_by");
   const policyDeadlineAt = policyDeadlineValue(policy, "deadline_at");
