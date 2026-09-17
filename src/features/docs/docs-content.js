@@ -134,7 +134,7 @@ export const DOC_GROUPS = [
       { slug: "tasks", title: "Tasks", summary: "Personal and network tasks, submission requirements, request progress, retry and dismissal.", loadMarkdown: HELP_MARKDOWN_LOADERS.tasks },
       { slug: "hive", title: "Hive", summary: "Public Nostr group chat, shared handles, periodic GLM participation and Kimi board escalation.", loadMarkdown: HELP_MARKDOWN_LOADERS.hive },
       { slug: "docs", title: "Docs", summary: "Encrypted documents, spreadsheets, folders, and chat with Coach and ODV.", loadMarkdown: HELP_MARKDOWN_LOADERS.docs },
-      { slug: "team", title: "Team", summary: "Directional task-history permissions.", loadMarkdown: HELP_MARKDOWN_LOADERS.team },
+      { slug: "team", title: "Team", summary: "Shared task history and Team Context in the app and Corbanu Terminal.", loadMarkdown: HELP_MARKDOWN_LOADERS.team },
       { slug: "messages", title: "Messages", summary: "Activate your shared Messages and Hive identity; send private NIP-17 messages.", loadMarkdown: HELP_MARKDOWN_LOADERS.messages },
       { slug: "wallet", title: "Wallet", summary: "Identity, balances, activity, custody, and signing.", loadMarkdown: HELP_MARKDOWN_LOADERS.wallet },
       { slug: "context", title: "Context", summary: "Durable account working context.", loadMarkdown: HELP_MARKDOWN_LOADERS.context },

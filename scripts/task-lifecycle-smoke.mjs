@@ -35,7 +35,7 @@ const taskgenBase = {
   description: "Produce a compact artifact showing task type normalization.",
   task_kind: "engineering",
   steps: ["Create the fixture.", "Run the check."],
-  submission_requirement: { type: "text", criteria: "Submit the result." },
+  submission_requirement: { type: "text", criteria: "Submit the resulting artifact as text." },
   verification_policy: { followup_required: true, mode: "standard_followup", verification_type: "text" },
   reward_offer: { amount_estimate_pft: "3.2" },
   deadline: { accept_by: "2026-05-26T00:00:00.000Z", deadline_at: null },
@@ -43,6 +43,23 @@ const taskgenBase = {
 assert.equal(validateTaskgenOutput(taskgenBase).task_kind, "personal");
 assert.equal(validateTaskgenOutput({ ...taskgenBase, task_kind: "alpha" }).task_kind, "alpha");
 assert.equal(validateTaskgenOutput(taskgenBase, { task_class: "network" }).task_kind, "network");
+// Step limits clamp, never reject. A thorough model output (many or long steps)
+// must not burn a generation attempt with taskgen_steps_invalid.
+{
+  const { TASK_MAX_STEPS, TASK_STEP_MAX_CHARS } = await import("../shared/task-steps.js");
+  const sevenSteps = Array.from({ length: 7 }, (_, index) => `Step ${index + 1}: do the thing thoroughly.`);
+  assert.equal(validateTaskgenOutput({ ...taskgenBase, steps: sevenSteps }).steps.length, 7);
+  const fifteenSteps = Array.from({ length: 15 }, (_, index) => `Step ${index + 1}: do the thing.`);
+  assert.equal(validateTaskgenOutput({ ...taskgenBase, steps: fifteenSteps }).steps.length, TASK_MAX_STEPS);
+  const longStep = `Audit the event source. ${"detail ".repeat(500)}`.trim();
+  assert.ok(longStep.length > 3000);
+  const longResult = validateTaskgenOutput({ ...taskgenBase, steps: [longStep, "Ship it."] }).steps;
+  assert.equal(longResult.length, 2);
+  assert.equal(longResult[0], longStep.slice(0, TASK_STEP_MAX_CHARS));
+  assert.deepEqual(validateTaskgenOutput({ ...taskgenBase, steps: ["  Trim me.  ", "", 42, "Then run."] }).steps, ["Trim me.", "Then run."]);
+  assert.throws(() => validateTaskgenOutput({ ...taskgenBase, steps: ["Only one step."] }), /taskgen_steps_invalid/);
+  assert.throws(() => validateTaskgenOutput({ ...taskgenBase, steps: "not a list" }), /taskgen_steps_invalid/);
+}
 const normalizedRelativeDeadline = validateTaskgenOutput({
   ...taskgenBase,
   deadline: { accept_by: "24h", deadline_at: "tomorrow" },

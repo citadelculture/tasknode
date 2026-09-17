@@ -1,0 +1,5 @@
+terminal Team Context: passed auth, read-only methods, web parity, account isolation, feature gate, grant revocation and session revocation
+team context smoke ok: counts, Vercel GLM 5.3 Flash, reward fanout, opt-in prompt, revocation
+Disposable test database removed.
+route auth policy smoke ok: 175 policies cover 152 registered literal paths and 8 modes
+Lint and formatting checks passed.

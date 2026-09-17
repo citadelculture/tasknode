@@ -1,5 +1,5 @@
 import { transactionCommand, databaseEnabled, query } from "./db/pool.js";
-import { PROFILE_NFT_ART_VERSION, PROFILE_NFT_TITLE } from "../shared/profile-nft-art.js";
+import { PROFILE_NFT_ART_VERSION, PROFILE_NFT_IMAGE_MODEL, PROFILE_NFT_TITLE } from "../shared/profile-nft-art.js";
 import { markDailyProfileNftAwardGenerated } from "./repositories/profile-nft-daily-awards.js";
 import { enqueueProfileNftRenderJob } from "./repositories/profile-nft-render-jobs.js";
 import { createGeneratingProfileNft, getProfileNft } from "./repositories/profile-nfts.js";
@@ -34,7 +34,7 @@ export async function profileNftGenerateStart({ method, payload = {}, session = 
         accountId: session.accountId,
         walletAddress: safeText(state?.wallet?.pftWallet?.address || state?.session?.walletLink?.address, 120),
         title: PROFILE_NFT_TITLE, description: "An original ink profile picture inspired by completed work. The art guide and anonymous art traits are public; task history stays private.",
-        promptSource: PROFILE_NFT_ART_VERSION, model: "gpt-image-2", size, quality, outputFormat,
+        promptSource: PROFILE_NFT_ART_VERSION, model: PROFILE_NFT_IMAGE_MODEL, size, quality, outputFormat,
       });
       // Ignore client history, context documents, identity and claimed scores.
       // The worker reads account-owned canonical task evidence after claiming.

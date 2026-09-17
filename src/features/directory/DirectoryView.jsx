@@ -9,7 +9,7 @@ const SORT_COLUMNS = [
   { key: "networkTasks", label: "Network" },
   { key: "personalTasks", label: "Personal" },
   { key: "rewards", label: "Rewards" },
-  { key: "alignment", label: "Alignment" },
+  { key: "alignment", label: "Alignment (7d)" },
   { key: "score", label: "Score" },
 ];
 
@@ -120,7 +120,7 @@ function OperatorRow({ operator }) {
           <i className={`tone-${alignmentTone(alignment)}`}>
             <b style={{ width: hasAlignment ? `${Math.max(0, Math.min(100, Number(alignment)))}%` : "0%" }} />
           </i>
-          <small>Alignment</small>
+          <small title="Airdrop PFT received over the last 7 days as a share of the maximum possible">Alignment (7d)</small>
         </span>
         <span className="directory-stat-cell is-score">
           {Math.round(Number(operator.score || 0))}

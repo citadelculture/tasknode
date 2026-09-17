@@ -1,10 +1,12 @@
+import { PROFILE_NFT_IMAGE_MODEL } from "../shared/profile-nft-art.js";
+
 const OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1";
 
 function safeText(value = "", max = 10000) {
   return String(value || "").trim().slice(0, max);
 }
 
-export async function renderProfileNftImage({ prompt, model = "gpt-image-2", size, quality, outputFormat, env = process.env, fetchImpl = fetch, signal } = {}) {
+export async function renderProfileNftImage({ prompt, model = PROFILE_NFT_IMAGE_MODEL, size, quality, outputFormat, env = process.env, fetchImpl = fetch, signal } = {}) {
   const apiKey = safeText(env.PROFILE_NFT_OPENAI_API_KEY, 10000);
   if (!apiKey) throw Object.assign(new Error("profile_nft_openai_not_configured"), { status: 503 });
   const sanitizedPrompt = safeText(prompt, 8000);

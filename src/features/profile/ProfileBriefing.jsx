@@ -294,7 +294,17 @@ export function TodaysBriefing({ airdrop, error = "", loading = false, rewardHis
       ? C.rust
       : C.warning;
   const airdropAmount = Number(paidAirdrop?.amountPft || airdrop?.dailyAirdropPft || 0);
-  const alignmentPct = Math.round(Number(airdrop?.alignmentScore7d || 0) * 100);
+  // Two different 0-100 numbers live on this card and must not share a name:
+  // - workQualityScore: the AI's assessment of the latest scored day's rewarded
+  //   work (retention_value_score), independent of the payout.
+  // - airdropAlignment7d: actual airdrop PFT / max possible over the last 7
+  //   days (alignment_score_7d). This is the "Alignment" the directory ranks by.
+  const workQualityScore = Number.isFinite(airdrop?.retentionValueScore)
+    ? Math.round(Math.min(100, Math.max(0, airdrop.retentionValueScore)))
+    : null;
+  const airdropAlignment7d = Number.isFinite(airdrop?.alignmentScore7d)
+    ? Math.round(Math.min(100, Math.max(0, airdrop.alignmentScore7d * 100)))
+    : null;
   const airdropDateSource = paidAirdrop?.submittedAt || airdrop?.completedAt || airdrop?.runDate;
   const runDate = fmtDateLabel(airdropDateSource);
   const isTodaysAirdrop = Boolean(airdropDateSource) && dateKeyUtc(airdropDateSource) === dateKeyUtc(new Date());
@@ -409,7 +419,13 @@ export function TodaysBriefing({ airdrop, error = "", loading = false, rewardHis
                 <span style={{ color: C.ink5 }}>·</span>
               </>
             )}
-            <span>Alignment <strong style={{ color: C.ink, fontWeight: 600 }}>{alignmentPct}</strong><span style={{ color: C.ink5 }}> / 100</span></span>
+            <span data-testid="daily-airdrop-alignment" title="AI assessment of recent rewarded work on the latest scored day, independent of the PFT payout. Not the 7-day Alignment used by the directory.">
+              Work quality (day) <strong style={{ color: C.ink, fontWeight: 600 }}>{workQualityScore ?? "—"}</strong><span style={{ color: C.ink5 }}> / 100</span>
+            </span>
+            <span style={{ color: C.ink5 }}>·</span>
+            <span data-testid="daily-airdrop-alignment-7d" title="Airdrop PFT actually received over the last 7 days as a share of the maximum possible. This is the Alignment shown in the directory and on public profiles.">
+              Alignment (7d) <strong style={{ color: C.ink, fontWeight: 600 }}>{airdropAlignment7d ?? "—"}</strong><span style={{ color: C.ink5 }}> / 100</span>
+            </span>
             {rewardedTasks > 0 && (
               <>
                 <span style={{ color: C.ink5 }}>·</span>

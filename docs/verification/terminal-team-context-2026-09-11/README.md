@@ -1,0 +1,9 @@
+# Team Context terminal bridge
+
+Task Node release 737, completed 2026-09-11 at 00:11:23 UTC, exposes GET `/api/terminal/tasknode/team/context`. The bridge resolves the linked terminal account and delegates to the existing collaboration handler for the web Team Context route. Feature gating, current directional task-history grants, freshness and account preferences remain authoritative. Query arguments cannot select another viewer; write methods are rejected.
+
+Deployment layers only the two changed server files on the exact release 736 image and updates the web process group. Before patching, hashes of the route, policy and collaboration modules matched production. The first build attempt used the root Dockerfile due to Fly config precedence and failed before deployment; the successful attempt used a copied identical Fly config beside the two-file layer Dockerfile. Existing worker images, application dependencies and unrelated working-tree edits were preserved.
+
+Verification: `scripts/terminal-team-context-smoke.mjs` and `scripts/team-context-smoke.mjs` passed in a fresh disposable PostgreSQL database, which was dropped afterward. Tests cover web-report parity, foreign-account arguments, unrelated users, feature disablement, stale report grant revocation, terminal-session revocation and rejected mutation methods. Route-policy smoke, lint and format checks passed. `deployed-probe.json` records actual deployed-module execution using a temporary synthetic terminal account with the database disabled; no production customer records or inference calls were written. Production web health passed after deployment.
+
+Companion Terminal branch: `fix/tasknode-team-context`, based on `7ae35557657b2f2d1c51a8f4af4e4bb1180fe5eb`. User-facing commands are `/tasknode team` and `corbanu tasknode team context --json`; this is the local debug candidate, separate from the already-running public release pipeline.

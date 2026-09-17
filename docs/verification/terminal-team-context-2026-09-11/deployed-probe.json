@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "route": "/api/terminal/tasknode/team/context",
+  "checks": [
+    "deployed GET-only bearer policy",
+    "unlinked denied",
+    "synthetic linked session reaches Team Context",
+    "mutations denied"
+  ],
+  "productionCustomerWrites": 0,
+  "mode": "deployed modules, isolated runtime store, database disabled"
+}
