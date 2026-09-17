@@ -105,6 +105,10 @@ jobs:
         run: npm run data-recovery-drill
         env:
           TASKNODE_RECOVERY_ADMIN_URL: postgres://tasknodeofficial:tasknodeofficial@127.0.0.1:5432/postgres
+      - name: Verify reducer retry backoff and hard cap in PostgreSQL
+        run: npm run pftl-reducer-redrive-postgres-smoke
+        env:
+          TASKNODE_TEST_DATABASE_URL: postgres://tasknodeofficial:tasknodeofficial@127.0.0.1:5432/postgres
       - name: Verify durable runtime identity and authentication authority
         run: node scripts/migrate-db.mjs && node scripts/account-repository-smoke.mjs && node scripts/auth-session-repository-smoke.mjs && node scripts/auth-challenge-repository-smoke.mjs && node scripts/auth-state-migration-smoke.mjs && node scripts/account-wallet-repository-smoke.mjs && node scripts/ethereum-deposit-repository-smoke.mjs && node scripts/terminal-auth-repository-smoke.mjs
         env:

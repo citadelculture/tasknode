@@ -264,6 +264,7 @@
     "task-generation-reliability-smoke": "node scripts/task-generation-reliability-smoke.mjs",
     "task-receipt-projection-smoke": "node scripts/task-receipt-projection-smoke.mjs",
     "pftl-cache-reducer-replay-smoke": "node scripts/pftl-cache-reducer-replay-smoke.mjs",
+    "pftl-reducer-redrive-postgres-smoke": "node scripts/pftl-reducer-redrive-postgres-smoke.mjs",
     "pftl-cache-failed-retry-smoke": "node scripts/pftl-cache-failed-retry-smoke.mjs",
     "task-evidence-drafts-smoke": "node scripts/task-evidence-drafts-smoke.mjs",
     "task-copy-payload-smoke": "node scripts/task-copy-payload-smoke.mjs",
