@@ -220,6 +220,7 @@
     "network-badge-admin-route-smoke": "node scripts/network-badge-admin-route-smoke.mjs",
     "network-badge-approval-state-smoke": "node scripts/network-badge-approval-state-smoke.mjs",
     "network-badge-default-preserved-smoke": "node scripts/network-badge-default-preserved-smoke.mjs",
+    "network-badge-default-postgres-smoke": "node scripts/network-badge-default-postgres-smoke.mjs",
     "network-badge-profile-smoke": "node scripts/network-badge-profile-smoke.mjs",
     "network-badge-verifier-jobs-smoke": "node scripts/network-badge-verifier-jobs-smoke.mjs",
     "qa-worker-access-smoke": "node scripts/qa-worker-access-smoke.mjs",

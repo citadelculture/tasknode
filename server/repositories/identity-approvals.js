@@ -360,6 +360,10 @@ export async function setDefaultNetworkBadge({
     throw error;
   }
   await transaction(async (client) => {
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`network_badge_default:${normalizedAccountId}`]
+    );
     const existing = await client.query(
       `
         SELECT 1
@@ -715,10 +719,18 @@ export async function refreshIdentityApprovalsFromProjection({
     walletAddress,
     preferDurable: false,
   });
-  const projectedBadgeIds = safeArray(projection.verifiedBadges)
-    .map((badge) => safeText(badge?.badgeId, 80))
-    .filter(Boolean);
+  const projectedBadgeIds = approvalRecordsFromNetworkBadgeProjection({
+    projection,
+    verifiedByAccountId,
+    verifiedByOperator,
+  }).badgeIds;
   const result = await transaction(async (client) => {
+    // Share the account lock with explicit default selection, including accounts
+    // whose first refresh has not created any badge rows yet.
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`network_badge_default:${normalizedAccountId}`]
+    );
     const existingDefault = await client.query(
       `
         SELECT badge_id

@@ -23,6 +23,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run network-badge-default-preserved-smoke
       - run: npm run check
         env:
           CHROME_BIN: google-chrome
@@ -105,6 +106,10 @@ jobs:
         run: npm run data-recovery-drill
         env:
           TASKNODE_RECOVERY_ADMIN_URL: postgres://tasknodeofficial:tasknodeofficial@127.0.0.1:5432/postgres
+      - name: Verify badge default refresh and concurrent selection in PostgreSQL
+        run: npm run network-badge-default-postgres-smoke
+        env:
+          TASKNODE_TEST_DATABASE_URL: postgres://tasknodeofficial:tasknodeofficial@127.0.0.1:5432/postgres
       - name: Verify durable runtime identity and authentication authority
         run: node scripts/migrate-db.mjs && node scripts/account-repository-smoke.mjs && node scripts/auth-session-repository-smoke.mjs && node scripts/auth-challenge-repository-smoke.mjs && node scripts/auth-state-migration-smoke.mjs && node scripts/account-wallet-repository-smoke.mjs && node scripts/ethereum-deposit-repository-smoke.mjs && node scripts/terminal-auth-repository-smoke.mjs
         env:
