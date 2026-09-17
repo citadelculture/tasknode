@@ -110,6 +110,7 @@ function base64ToBytes(text = "") {
 export function createSessionStorageKeyStore(storage, cryptoObj = globalThis.crypto) {
   const subtle = cryptoObj?.subtle || null;
   const memoryKey = { current: null };
+  let generation = 0;
 
   async function importFromBytes(bytes) {
     if (!subtle) return null;
@@ -146,18 +147,22 @@ export function createSessionStorageKeyStore(storage, cryptoObj = globalThis.cry
       return memoryKey.current;
     },
     set: async (key) => {
+      const started = generation;
       if (!subtle) {
         memoryKey.current = key;
         return;
       }
       try {
         const raw = await subtle.exportKey("raw", key);
+        if (started !== generation) return;
         writeStored(bytesToBase64(new Uint8Array(raw)));
       } catch {
+        if (started !== generation) return;
         memoryKey.current = key;
       }
     },
     clear: () => {
+      generation += 1;
       memoryKey.current = null;
       try {
         if (storage) storage.removeItem(SESSION_CRYPTO_KEY_STORAGE_KEY);
@@ -177,12 +182,15 @@ export function createUnlockedWalletSessionStore({
   const keys = keyStore || createSessionStorageKeyStore(storage, cryptoObj);
   const subtle = cryptoObj?.subtle || null;
   let keyPromise = null;
+  let generation = 0;
 
   async function sessionCryptoKey() {
+    const started = generation;
     if (!subtle) return null;
     if (!keyPromise) {
       keyPromise = (async () => {
         const existing = await keys.get().catch(() => null);
+        if (started !== generation) return null;
         if (existing) return existing;
         // Extractable so the key can be serialized into sessionStorage next to
         // the envelope (see createSessionStorageKeyStore).
@@ -190,8 +198,9 @@ export function createUnlockedWalletSessionStore({
           "encrypt",
           "decrypt",
         ]);
+        if (started !== generation) return null;
         await keys.set(generated).catch(() => null);
-        return generated;
+        return started === generation ? generated : null;
       })().catch(() => null);
     }
     return keyPromise;
@@ -215,6 +224,7 @@ export function createUnlockedWalletSessionStore({
   }
 
   function clearAll() {
+    generation += 1;
     if (!storage) return false;
     for (const key of listStorageKeys(storage)) {
       if (isUnlockedSessionKey(key)) storage.removeItem(key);
@@ -253,15 +263,17 @@ export function createUnlockedWalletSessionStore({
   }
 
   async function save(unlock = {}) {
+    const started = generation;
     const session = normalizeUnlockedWalletSession(unlock);
     const key = sessionKey(session?.accountId);
     if (!storage || !session || !key) return false;
     const cryptoKey = await sessionCryptoKey();
-    if (!cryptoKey) return false;
+    if (!cryptoKey || started !== generation) return false;
     try {
       const iv = cryptoObj.getRandomValues(new Uint8Array(12));
       const plaintext = new TextEncoder().encode(JSON.stringify(session));
       const ciphertext = await subtle.encrypt({ name: "AES-GCM", iv }, cryptoKey, plaintext);
+      if (started !== generation) return false;
       storage.setItem(
         key,
         JSON.stringify({ v: 2, iv: bytesToBase64(iv), ct: bytesToBase64(new Uint8Array(ciphertext)) })

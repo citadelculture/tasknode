@@ -313,7 +313,7 @@
     "signup-reset": "node scripts/reset-signup-test-account.mjs",
     "task-time-format-smoke": "node scripts/task-time-format-smoke.mjs",
     "security-smoke": "node scripts/security-smoke.mjs",
-    "test:unit": "npm run wallet-relock-reload-smoke && npm run route-auth-policy-smoke && npm run request-validation-smoke && npm run campaign-tracker-body-smoke && npm run durable-identity-boundary-smoke && npm run app-state-cache-gate-smoke && npm run app-state-switch-perf-smoke && npm run nostr-messages-smoke && npm run wallet-state-regression && npm run container-entrypoint-smoke && npm run runtime-role-boundary-smoke && npm run extension-registry-smoke && npm run inference-failover-smoke",
+    "test:unit": "npm run wallet-save-lock-race-smoke && npm run wallet-relock-reload-smoke && npm run route-auth-policy-smoke && npm run request-validation-smoke && npm run campaign-tracker-body-smoke && npm run durable-identity-boundary-smoke && npm run app-state-cache-gate-smoke && npm run app-state-switch-perf-smoke && npm run nostr-messages-smoke && npm run wallet-state-regression && npm run container-entrypoint-smoke && npm run runtime-role-boundary-smoke && npm run extension-registry-smoke && npm run inference-failover-smoke",
     "test:integration": "npm run runtime-smoke && npm run chat-attachment-smoke && npm run pftl-cache-smoke && npm run pftl-cache-watcher-smoke && npm run security-smoke",
     "test:e2e": "npm run route-smoke",
     "test:e2e:full": "npm run frame-smoke",
@@ -377,7 +377,8 @@
     "profile-nft-art-smoke": "node scripts/profile-nft-art-smoke.mjs",
     "profile-nft-pipeline-smoke": "node scripts/profile-nft-pipeline-smoke.mjs",
     "hive-group-smoke": "node scripts/hive-group-smoke.mjs",
-    "campaign-tracker-body-smoke": "node scripts/campaign-tracker-body-smoke.mjs"
+    "campaign-tracker-body-smoke": "node scripts/campaign-tracker-body-smoke.mjs",
+    "wallet-save-lock-race-smoke": "node scripts/wallet-save-lock-race-smoke.mjs && RACE_CASE=export node scripts/wallet-save-lock-race-smoke.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
