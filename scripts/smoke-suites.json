@@ -70,6 +70,7 @@
     "scripts/hive-context-smoke.mjs",
     "scripts/hive-generation-intelligence-smoke.mjs",
     "scripts/hive-public-identity-smoke.mjs",
+    "scripts/hive-report-global-token-fallback-smoke.mjs",
     "scripts/hive-report-identity-smoke.mjs",
     "scripts/hive-report-markdown-smoke.mjs",
     "scripts/hive-route-cache-observability-smoke.mjs",
